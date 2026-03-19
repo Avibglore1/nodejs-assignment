@@ -41,9 +41,84 @@
  */
   const express = require('express');
   const bodyParser = require('body-parser');
-  
+  const fs = require("fs");
+const { error } = require('console');
+
   const app = express();
   
   app.use(bodyParser.json());
   
+  let todos = [];
+  let idCounter = 1;
+
+  const FILE = "todos.json";
+  if(fs.existsSync(FILE)){
+    const data = JSON.parse(fs.readFileSync(FILE,"utf-8"));
+    todos = data.todos || [];
+    idCounter = data.idCounter || 1;
+  }
+
+  function saveToFile(){
+    fs.writeFileSync(FILE,JSON.stringify({todos,idCounter}));
+  }
+
+  app.get("/todos", (req,res)=>{
+    res.status(200).json(todos);
+  })
+
+  app.get("/todos/:id", (req,res)=>{
+    const id = parseInt(req.params.id);
+    const todo = todos.find(t=>t.id===id);
+
+    if(!todo) return res.status(404).json({error: "Todo not found"});
+
+    res.status(200).json(todo);
+  })
+
+  app.post("/todos", (req,res)=>{
+    const {title, description, completed} = req.body;
+
+    if(!title || !description){
+      return res.status(400).json({error: "Invalid Input"})
+    }
+
+    const newTodo = {
+      id: idCounter++,
+      title,
+      description,
+      completed: completed || false
+    };
+
+    todos.push(newTodo);
+    saveToFile()
+    res.status(201).json({id: newTodo.id});
+  });
+
+  app.put("/todos/:id",(req,res)=>{
+    const id = parseInt(req.params.id);
+    const todo = todos.find(t=>t.id===id);
+    if(!todo) return res.status(404).json({error: "Todo not found"});
+
+    const {title,description,completed} = req.body;
+
+    if(title!==undefined) todo.title = title;
+    if(description!==undefined) todo.description = description;
+    if(completed!==undefined) todo.completed = completed;
+    saveToFile();
+    res.status(200).json(todo);
+  })
+
+  app.delete("/todos/:id",(req,res)=>{
+    const id = parseInt(req.params.id);
+    const index = todos.findIndex(t=>t.id===id);
+    if(index===-1) return res.status(404).json({error: "Todo not found"});
+    todos.splice(index,1);
+    saveToFile();
+    res.status(200).json({message: "Todo item deleted"})
+  })
+
+  app.use((req,res)=>{
+    res.status(404).json({error: "Route not found"});
+  })
+
   module.exports = app;
